@@ -18,7 +18,7 @@ async function getOrderWithItems(
   if (!order) return null;
 
   const items = await sql<OrderItem[]>`
-    SELECT oi.*, p.name AS product_name
+    SELECT oi.*, p.name AS product_name, p.sku AS product_sku
     FROM order_items oi
     JOIN products p ON p.id = oi.product_id
     WHERE oi.order_id = ${orderId}

@@ -1,10 +1,18 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { tsr } from "../tsr";
 import { useCart } from "../cart";
 import { useNavigate } from "../router";
 import { Wait } from "../components/Wait";
 import { formatPrice } from "../helpers";
 import { Button } from "../components/Button";
+import {
+  addToCart,
+  beginCheckout,
+  purchase,
+  removeFromCart,
+  toItem,
+  viewItemList,
+} from "../analytics";
 
 export function NewOrderPage() {
   const query = tsr.products.list.useQuery({ queryKey: ["products"] });
@@ -13,6 +21,17 @@ export function NewOrderPage() {
   const tsrQueryClient = tsr.useQueryClient();
 
   const [error, setError] = useState<string | null>(null);
+
+  const products = query.data?.status === 200 ? query.data.body : undefined;
+
+  const productsById = useMemo(
+    () => new Map((products ?? []).map((p) => [p.id, p])),
+    [products],
+  );
+
+  useEffect(() => {
+    if (products) viewItemList(products, "menu", "Menu");
+  }, [products]);
 
   const { mutate: createOrder, isPending } = tsr.orders.create.useMutation({
     onSuccess: (data) => {
@@ -58,7 +77,10 @@ export function NewOrderPage() {
                         <>
                           <Button
                             variant="icon"
-                            onClick={() => removeItem(product.id)}
+                            onClick={() => {
+                              removeItem(product.id);
+                              removeFromCart(product);
+                            }}
                           >
                             -
                           </Button>
@@ -67,7 +89,10 @@ export function NewOrderPage() {
                       )}
                       <Button
                         variant="icon"
-                        onClick={() => addItem(product.id)}
+                        onClick={() => {
+                          addItem(product.id);
+                          addToCart(product);
+                        }}
                       >
                         +
                       </Button>
@@ -127,6 +152,14 @@ export function NewOrderPage() {
                       className="w-full"
                       disabled={isPending}
                       onClick={() => {
+                        const cartItems = [...cart.entries()].flatMap(
+                          ([productId, quantity]) => {
+                            const product = productsById.get(productId);
+                            return product ? [toItem(product, quantity)] : [];
+                          },
+                        );
+                        beginCheckout(cartItems);
+                        purchase(cartItems);
                         createOrder({
                           body: {
                             items: [...cart.entries()].map(

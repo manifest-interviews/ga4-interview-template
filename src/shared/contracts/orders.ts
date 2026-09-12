@@ -8,6 +8,7 @@ export const OrderItemSchema = z.object({
   order_id: z.number(),
   product_id: z.number(),
   product_name: z.string(),
+  product_sku: z.string(),
   quantity: z.number(),
   unit_price_cents: z.number(),
 });

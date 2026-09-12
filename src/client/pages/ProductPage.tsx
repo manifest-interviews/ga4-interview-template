@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { tsr } from "../tsr";
 import { Link } from "../router";
 import { Wait } from "../components/Wait";
@@ -6,6 +6,7 @@ import { formatPrice } from "../helpers";
 import { Button } from "../components/Button";
 import { ProductForm } from "../components/ProductForm";
 import type { Product } from "../../shared/contracts/products";
+import { viewItem } from "../analytics";
 
 export function ProductPage({ productId }: { productId: number }) {
   const query = tsr.products.get.useQuery({
@@ -37,6 +38,10 @@ function ProductDetail({
   productId: number;
 }) {
   const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    viewItem(product);
+  }, [product.id]);
 
   const tsrQueryClient = tsr.useQueryClient();
 
