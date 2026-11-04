@@ -1,86 +1,54 @@
-# Manifest Interview App
+# Manifest Interviews - Cafe POS
 
-A cafe point-of-sale system. Products, orders, and a checkout flow are already
-built — you'll extend and build on top of it during the interview.
+A browser-only cafe checkout sandbox for evaluating GA4 / Google Tag Manager troubleshooting.
+**Candidates do not need to clone this repository or write application code.**
+The facilitator provides a hosted URL and access to the designated GTM workspace.
 
-**Please do not fork this repository.**  Just clone it locally.
+## What the application does
 
-## Preparing for the interview
+- Fixed 15-product menu with stable SKUs and integer-cent prices.
+- Product list, product detail, add/remove from cart, and checkout interactions.
+- Two deterministic sandbox payment outcomes: approved and declined.
+- Each checkout emits `order_submitted`; only approved checkouts emit `order_completed` with a unique `transaction_id`.
+- Declined checkouts emit `order_failed` and do not create an order.
+- Successful orders appear in the Orders screen for the current browser tab only.
+- `Reset demo session` clears browser-local orders and reloads the app.
 
-Please clone this repo and get the app running locally with the steps below.
+This is a static HTML/CSS/JavaScript app. There is no database, backend, external payment provider, or real customer information.
 
-Install [bun](https://bun.com/) (Node.js-compatible runtime) and dependencies, and start a development server:
+## Local development (maintainers only)
 
-```bash
-# Install bun
-curl -fsSL https://bun.sh/install | bash
-# Install dependencies
-bun install
-# Dev server
-bun dev
+Node.js 20+ is required for the local static server and tests. No package installation is required.
+
+```sh
+npm run dev       # http://localhost:3001
+npm run check     # syntax checks plus contract tests
 ```
 
-Make sure you can access the app at [http://localhost:3001/](http://localhost:3001/).
+### Vercel deployment
 
-Finally, install [Claude Code](https://code.claude.com/docs/en/quickstart):
+Connect this repository to Vercel, select **Other** as the framework preset, and deploy. `vercel.json` sets `public/` as the output directory. No runtime functions, database, secrets, or build tooling are needed.
 
-```bash
-curl -fsSL https://claude.ai/install.sh | bash
+The public GTM container ID (`GTM-W4BK6PG7`) is embedded in `public/index.html`.
+Confirm that the sandbox container is the intended interview container before deployment.
+No GA4 measurement ID or API secret belongs in the browser app; GTM controls forwarding events to the GA4 property.
+
+**Important:** Until the new GTM interview baseline is configured, the currently published container does **not** map `order_completed` to GA4 `purchase`. That is intentional during the application-first migration. Do not assess candidates against the old GTM baseline or seed script after deploying this version.
+
+## Data-layer contract
+
+See [docs/data-layer-contract.md](docs/data-layer-contract.md) for the complete event and payload specification, monetary-value conventions, and verification steps.
+
+```text
+Browser interaction -> window.dataLayer -> GTM -> GA4
 ```
 
-We'll provide you with Claude API keys at the start of the interview. You may use a different tool (e.g., Cursor, Codex) using your own subscription if you prefer.
+The app emits browser events only; it never calls GA4 directly. The order-completion business event is `order_completed`, **not** `purchase`. The GTM container is responsible for translating it to a GA4 `purchase` event with the right parameters.
 
-Feel free to explore the repo beforehand. The stack is intentionally light. You're welcome to add
-libraries (a component library, an ORM, etc.) before or during the interview to make yourself more
-productive. We naturally expect you to cut corners in an interview that you wouldn't cut in
-production.
+A simple functional check: add **two Lattes** and **one Croissant**. The correct order value is `$14.75`, `value_cents` is `1475`, and a confirmed order should contain two distinct item entries with quantities 2 and 1.
 
-## Stack overview
+## Interview repeatability
 
-- **Runtime:** [Bun](https://bun.sh) — server, bundler, and package manager in one
-- **Database:** SQLite via Bun's built-in [SQL client](https://bun.com/docs/runtime/sql) (tagged template literals)
-- **API:** [ts-rest](https://ts-rest.com) — type-safe contracts shared between server and client, with Zod validation
-- **Frontend:** React 19, Tailwind CSS, React Query (auto-generated hooks from ts-rest contracts)
+The frontend has no shared server state. Each browser tab stores completed demo orders in `sessionStorage`. Use a fresh browser profile or the `Reset demo session` button for each run. Resetting the app does **not** delete events already collected by GA4; the facilitator must manage GA4 reference data separately. GTM candidate changes belong in disposable, unpublished workspaces.
 
-## Analytics
-
-The app reports the ordering funnel to GA4 through Google Tag Manager.
-
-```
-app  ──push──▸  window.dataLayer  ──▸  GTM container  ──▸  GA4
-```
-
-Nothing calls GA4 directly. `src/client/analytics/` builds GA4 ecommerce
-events and pushes them onto the data layer; the GTM container decides which
-become GA4 events and how their fields map. A change to the payload shape is
-therefore only half a change — the container has to agree.
-
-Events: `view_item_list`, `view_item`, `add_to_cart`, `remove_from_cart`,
-`begin_checkout`, `purchase`.
-
-Setup:
-
-```bash
-cp .env.example .env   # container and measurement IDs
-bun dev
-```
-
-If `BUN_PUBLIC_GTM_CONTAINER_ID` is unset the app still runs and events still
-queue on `window.dataLayer` — they just don't reach GA4.
-
-To watch events as they fire, use **GTM Preview** (Preview in the container,
-pointed at `http://localhost:3001`). It shows tag firing and full data layer
-contents in the browser, with no GA4 round trip. `window.dataLayer` is also
-readable straight from the browser console.
-
-## Adding a feature end-to-end
-
-The products and orders features are complete working examples. To add a new resource, follow the same pattern:
-
-1. **DB Schema** — update `src/server/schema.sql` as needed (table definitions and seed data live in the same file)
-   - The server detects changes and drops and recreates all tables with fresh seed data. No db migrations.
-2. **Contract** — define routes and Zod schemas under `src/shared/contracts/`, then register it in `src/shared/contract.ts`
-3. **Handlers** — implement the contract in a new file under `src/server/api/`, then register it in `src/server/api/index.ts`
-4. **Page** — add a React component in `src/client/pages/`, then register it in `src/client/pages/index.tsx`
-
-API responses are validated against the Zod contracts at runtime, so schema mismatches surface immediately.
+The published GTM baseline and internal scoring materials should live in a **private facilitator location**, not in this public candidate repository.
